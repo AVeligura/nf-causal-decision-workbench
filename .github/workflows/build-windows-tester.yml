@@ -1,0 +1,60 @@
+name: Build Windows tester package
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout accepted source
+        uses: actions/checkout@v4
+
+      - name: Install Python 3.12 x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: x64
+
+      - name: Fetch and verify accepted UCI source data
+        run: python scripts/fetch_uci_data.py
+
+      - name: Build and verify portable distribution
+        shell: powershell
+        run: ./packaging/build_windows_tester.ps1
+
+      - name: Upload tester package
+        uses: actions/upload-artifact@v4
+        with:
+          name: NF_Causal_Workbench_V3_1_1_Release_Assets
+          path: |
+            release/NF_Causal_Workbench_V3_1_1_Windows_Tester.zip
+            release/NF_Causal_Workbench_V3_1_1_Windows_Tester_SHA256.txt
+            release/NF_Causal_Workbench_V3_1_1_Test_Data.zip
+            release/NF_Causal_Workbench_V3_1_1_Test_Data_SHA256.txt
+            release/RELEASE_NOTES_GENERATED.md
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish or update GitHub prerelease
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v3.1.1
+          name: NF-Causal Decision Workbench V3.1.1 — Windows testing build
+          body_path: release/RELEASE_NOTES_GENERATED.md
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: |
+            release/NF_Causal_Workbench_V3_1_1_Windows_Tester.zip
+            release/NF_Causal_Workbench_V3_1_1_Windows_Tester_SHA256.txt
+            release/NF_Causal_Workbench_V3_1_1_Test_Data.zip
+            release/NF_Causal_Workbench_V3_1_1_Test_Data_SHA256.txt

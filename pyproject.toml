@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nf-causal-workbench"
+version = "0.3.1.1"
+description = "Neuro-fuzzy causal decision workbench for structural uncertainty"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = {text = "MIT"}
+authors = [{name = "Anton Veligura"}]
+dependencies = [
+  "PySide6>=6.10,<7",
+  "numpy>=2.2,<3",
+  "pandas>=2.2,<4",
+  "scipy>=1.15,<2",
+  "scikit-learn>=1.7,<2",
+  "statsmodels>=0.14,<1",
+  "networkx>=3.4,<4",
+  "matplotlib>=3.10,<4",
+  "seaborn>=0.13,<1",
+  "pyarrow>=19,<26",
+  "openpyxl>=3.1,<4",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.8,<3",
+  "PyYAML>=6,<7",
+  "reportlab>=4.3,<6",
+  "psutil>=6,<8",
+  "joblib>=1.4,<2",
+  "torch>=2.7,<3",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.3,<10",
+  "pytest-qt>=4.4,<5",
+  "hypothesis>=6.130,<7",
+  "ruff>=0.11,<1",
+  "mypy>=1.15,<3",
+]
+
+[project.scripts]
+nf-causal = "ui.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/domain", "src/engine", "src/study", "src/runtime", "src/visualization", "src/ui"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
+qt_api = "pyside6"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "RUF"]
+ignore = ["E501", "RUF001"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+no_implicit_optional = true
+plugins = ["pydantic.mypy"]

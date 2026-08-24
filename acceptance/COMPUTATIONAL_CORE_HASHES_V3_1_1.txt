@@ -1,0 +1,9 @@
+Tree hashes over sorted Python-file SHA-256 rows:
+
+domain         96ff50cf75151059386bd9a4de4d0143e186b7c7dcf5e13dba94b7dc9bfc4da8
+engine         7d16ffdd8dd8747dd239dc7e1148f116fe434a3ae925524da350afa1954fa178
+study          783f721ba7c96746a8e62551b22c5ca197e5ac4067031b25962b2954e27f37c0
+runtime        dde042dd1572e0565f0327e76cba1bc15c573d0fef96b3d09a4427a5b49457ec
+visualization  78145f573137b06af2644aa2d44d46208cfbf707ac11dd24379a7a2d9fe62dc3
+
+Each hash is identical between accepted V3.1 source and V3.1.1.
