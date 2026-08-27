@@ -193,6 +193,9 @@ Write-Host "Exit code: $SmokeExitCode"
 
 $VerificationReport = Join-Path $Distribution "DISTRIBUTION_VERIFICATION.json"
 & $BuildPython (Join-Path $ProjectRoot "packaging\verify_tester_distribution.py") $Distribution --report $VerificationReport
+if ($LASTEXITCODE -ne 0) {
+    throw "Distribution verification failed with exit code $LASTEXITCODE."
+}
 
 Get-ChildItem -LiteralPath $Distribution -File -Recurse | Sort-Object FullName | ForEach-Object {
     $Relative = $_.FullName.Substring($Distribution.Length + 1).Replace("\", "/")
@@ -219,6 +222,9 @@ Copy-Item -LiteralPath (Join-Path $ProjectRoot "data\raw\uci_polish\ATTRIBUTION.
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "configs\reference.yaml") -Destination (Join-Path $DataDistribution "configs\reference.yaml")
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "packaging\README_DATA_RU.md") -Destination (Join-Path $DataDistribution "README_DATA_RU.md")
 & $BuildPython (Join-Path $ProjectRoot "packaging\generate_release_sample.py") --output (Join-Path $DataDistribution "examples\sample_import_reference_seed_20260814.csv")
+if ($LASTEXITCODE -ne 0) {
+    throw "Release sample generation failed with exit code $LASTEXITCODE."
+}
 
 Get-ChildItem -LiteralPath $DataDistribution -File -Recurse | Sort-Object FullName | ForEach-Object {
     $Relative = $_.FullName.Substring($DataDistribution.Length + 1).Replace("\", "/")
