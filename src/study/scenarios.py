@@ -46,6 +46,20 @@ SCENARIO_DEFAULT_VALUE_REGIME = {
     "outside_gamma": "unfavorable",
 }
 
+# Parameters changed by at least one scenario preset. Every scenario selection
+# starts from this statistical baseline so values from the previous preset
+# cannot leak into the next one.
+SCENARIO_STATISTICAL_BASELINE = {
+    "assignment_strength": 1.20,
+    "propensity_lower": 0.15,
+    "propensity_upper": 0.85,
+    "partial_share": 0.10,
+    "refusal_share": 0.0,
+    "missing_share": 0.05,
+    "hidden_confounding": 0.0,
+    "evidence_conflict": 0.0,
+}
+
 VALUE_REGIME_PARAMETERS = {
     "favorable": {
         "sales_loss_scale": 0.006,
@@ -91,6 +105,7 @@ def apply_scenario(
     values = config.model_dump()
     scenario = config.scenario
     values.update(preset_scenario=scenario, customized=False)
+    values.update(SCENARIO_STATISTICAL_BASELINE)
     if scenario == "reference":
         values.update(
             propensity_lower=0.15,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -128,7 +129,10 @@ class DataImporter:
 
 
 def _register_pdf_font() -> str:
+    windows_fonts = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
     candidates = (
+        windows_fonts / "segoeui.ttf",
+        windows_fonts / "arial.ttf",
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
         Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
     )
@@ -136,7 +140,9 @@ def _register_pdf_font() -> str:
         if candidate.exists():
             pdfmetrics.registerFont(TTFont("PassportSans", str(candidate)))
             return "PassportSans"
-    return "Helvetica"
+    raise RuntimeError(
+        "Не найден TrueType-шрифт с поддержкой кириллицы для PDF-паспорта"
+    )
 
 
 def _format_pdf_number(value: Any) -> str:

@@ -362,6 +362,7 @@ class ProjectDataWorkspace(QWidget):
         self.scenario.setCurrentIndex(max(0, index))
         self.scenario.setEnabled(not self.state.reference_locked)
         self.reset_preset.setEnabled(not self.state.reference_locked)
+        self.clone_button.setEnabled(self.state.reference_locked)
         self.scenario.blockSignals(False)
 
     def refresh_data(self, data: pd.DataFrame) -> None:
@@ -683,6 +684,9 @@ class CausalInferenceWorkspace(QWidget):
         state.neural_result_changed.connect(self._neural_finished)
 
     def _neural_finished(self, result) -> None:
+        if result is None:
+            self.neural_status.setText("Ожидает запуска")
+            return
         self.neural_status.setText(
             f"{result.backend}: ATE={result.ate:.5f}; "
             f"ансамблевый интервал [{result.interval[0]:.5f}; {result.interval[1]:.5f}]"
@@ -787,7 +791,7 @@ class StabilityDecisionWorkspace(QWidget):
         alpha_range = (
             "—"
             if summary.stable_alpha_range is None
-            else f"[{summary.stable_alpha_range[0]:.2f}; {summary.stable_alpha_range[1]:.2f}]"
+            else f"[{summary.stable_alpha_range[0]:.4f}; {summary.stable_alpha_range[1]:.4f}]"
         )
         evi_se = (
             "—"
@@ -804,14 +808,22 @@ class StabilityDecisionWorkspace(QWidget):
         )
         self.trajectory.setRowCount(len(result.decisions))
         cuts = {cut.alpha: cut for cut in result.alpha_cuts}
+        fully_not_identified = bool(result.effects) and all(
+            effect.status.value == "not_identified" for effect in result.effects
+        )
         for row, decision in enumerate(result.decisions):
             maximum = [value for value in decision.maximum_regret.values() if value is not None]
+            maximum_text = (
+                "—"
+                if fully_not_identified or not maximum
+                else f"{min(maximum):.5f}"
+            )
             values = [
-                f"{decision.alpha:.2f}",
+                f"{decision.alpha:.4f}",
                 ", ".join(cuts[decision.alpha].graph_ids),
                 decision.status,
                 decision.selected_action or "—",
-                "—" if not maximum else f"{min(maximum):.5f}",
+                maximum_text,
             ]
             for column, value in enumerate(values):
                 self.trajectory.setItem(row, column, QTableWidgetItem(value))
@@ -838,8 +850,8 @@ class ExperimentPassportWorkspace(QWidget):
     def _queue_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        design = QTableWidget(10, 4)
-        design.setHorizontalHeaderLabels(["Сценарий", "n", "Повторы", "Статус"])
+        self.queue_design = QTableWidget(10, 4)
+        self.queue_design.setHorizontalHeaderLabels(["Сценарий", "n", "Повторы", "Статус"])
         cells = [
             ("S1 Опорный", 600),
             ("S1 Опорный", 1500),
@@ -854,9 +866,11 @@ class ExperimentPassportWorkspace(QWidget):
         ]
         for row, (scenario, n) in enumerate(cells):
             for column, value in enumerate((scenario, n, 500, "ожидает")):
-                design.setItem(row, column, QTableWidgetItem(str(value)))
-        design.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        layout.addWidget(design)
+                self.queue_design.setItem(row, column, QTableWidgetItem(str(value)))
+        self.queue_design.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch
+        )
+        layout.addWidget(self.queue_design)
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Повторов на ячейку (лабораторный режим)"))
         self.repetitions = QSpinBox()
@@ -874,6 +888,17 @@ class ExperimentPassportWorkspace(QWidget):
         layout.addWidget(self.queue_log)
         return tab
 
+    def mark_smoke_started(self, repetitions: int) -> None:
+        for row in range(self.queue_design.rowCount()):
+            self.queue_design.setItem(row, 2, QTableWidgetItem(str(repetitions)))
+            self.queue_design.setItem(row, 3, QTableWidgetItem("выполняется"))
+
+    def mark_smoke_finished(self, counts) -> None:
+        failed = int(counts.get("failed", 0)) if isinstance(counts, dict) else 0
+        status = "выполнено" if failed == 0 else "см. журнал"
+        for row in range(self.queue_design.rowCount()):
+            self.queue_design.setItem(row, 3, QTableWidgetItem(status))
+
     def _comparison_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -886,8 +911,9 @@ class ExperimentPassportWorkspace(QWidget):
         )
         layout.addWidget(self.comparison_table)
         note = QLabel(
-            "Сравниваются только утверждённые конфигурации: полная процедура, максимальный граф, "
-            "жёсткое множество и Structure Oracle. Oracle-информация недоступна обычным методам."
+            "Показаны утверждённые конфигурации и диагностические абляции: полная процедура, "
+            "максимальный граф, жёсткое множество, Structure Oracle, фиксированный α=0.80 "
+            "и вариант без экспертных свидетельств. Oracle-информация недоступна обычным методам."
         )
         note.setWordWrap(True)
         note.setObjectName("noteBox")

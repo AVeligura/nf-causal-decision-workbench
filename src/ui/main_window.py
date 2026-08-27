@@ -207,10 +207,12 @@ class MainWindow(QMainWindow):
     @Slot()
     def _validate(self) -> None:
         valid, warnings = self.state_model.validate()
-        if valid:
+        if valid and warnings:
+            self.progress_text.setText("Конфигурация валидна; есть диагностические предупреждения")
+        elif valid:
             self.progress_text.setText("Конфигурация валидна")
         elif warnings:
-            self.progress_text.setText("Требуется проверка предупреждений")
+            self.progress_text.setText("Требуется исправить ошибки конфигурации")
 
     @Slot()
     def _execute(self) -> None:
@@ -224,6 +226,8 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(running)
         self.export_button.setEnabled(self.state_model.result is not None and not running)
         self.replay_button.setEnabled(self.state_model.result is not None and not running)
+        if state in {"draft", "stale"}:
+            self.progress_text.setText("Конфигурация изменена; требуется проверка")
 
     @Slot(int, str)
     def _progress_changed(self, value: int, text: str) -> None:
@@ -271,6 +275,7 @@ class MainWindow(QMainWindow):
 
     @Slot(int)
     def _smoke_requested(self, repetitions: int) -> None:
+        self.experiment_workspace.mark_smoke_started(repetitions)
         self.experiment_workspace.queue_log.append(
             f"Запущен smoke run: {repetitions} повторов × 10 ячеек; checkpoint включён."
         )
@@ -278,6 +283,7 @@ class MainWindow(QMainWindow):
 
     @Slot(object, object)
     def _monte_carlo_finished(self, counts, paths) -> None:
+        self.experiment_workspace.mark_smoke_finished(counts)
         self.experiment_workspace.queue_log.append(
             f"Smoke run завершён: {counts}. Агрегаты: {paths[2]}"
         )

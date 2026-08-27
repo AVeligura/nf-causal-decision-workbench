@@ -161,22 +161,26 @@ class AppState(QObject):
         self.thread_pool = QThreadPool.globalInstance()
         self._worker: AnalysisWorker | None = None
         self._neural_worker: NeuralWorker | None = None
+        self._neural_run_id: str | None = None
         self._mc_worker: MonteCarloWorker | None = None
         self._mc_runner: MonteCarloRunner | None = None
         self._cancel_requested = False
 
     def clone_reference(self) -> None:
+        self.neural_result_changed.emit(None)
         values = self.config.model_dump()
         values.update(mode="laboratory", profile_name="laboratory-copy")
         self.config = GeneratorConfig.model_validate(values)
         self.reference_locked = False
         self.state = "draft"
+        self.warnings_changed.emit(())
         self.config_changed.emit(self.config)
         self.state_changed.emit(self.state)
 
     def set_config_value(self, name: str, value: Any) -> None:
         if self.reference_locked:
             return
+        self.neural_result_changed.emit(None)
         values = self.config.model_dump()
         values[name] = value
         if name == "scenario":
@@ -191,6 +195,7 @@ class AppState(QObject):
             )
             self.evidence_changed.emit(self.evidence_bundle)
         self.state = "stale" if self.result is not None else "draft"
+        self.warnings_changed.emit(())
         self.config_changed.emit(self.config)
         self.state_changed.emit(self.state)
 
@@ -204,12 +209,14 @@ class AppState(QObject):
     def reset_scenario_preset(self) -> None:
         if self.reference_locked:
             return
+        self.neural_result_changed.emit(None)
         self.config = apply_scenario(self.config)
         self.evidence_bundle = reference_evidence(
             reliability_multiplier=self.config.evidence_reliability / 0.90,
             conflict_strength=self.config.evidence_conflict,
         )
         self.state = "stale" if self.result is not None else "draft"
+        self.warnings_changed.emit(())
         self.config_changed.emit(self.config)
         self.evidence_changed.emit(self.evidence_bundle)
         self.state_changed.emit(self.state)
@@ -217,8 +224,10 @@ class AppState(QObject):
     def replace_evidence_bundle(self, bundle: EvidenceBundle) -> None:
         if self.reference_locked:
             return
+        self.neural_result_changed.emit(None)
         self.evidence_bundle = bundle
         self.state = "stale" if self.result is not None else "draft"
+        self.warnings_changed.emit(())
         self.evidence_changed.emit(bundle)
         self.state_changed.emit(self.state)
 
@@ -267,19 +276,22 @@ class AppState(QObject):
         )
 
     def validate(self) -> tuple[bool, tuple[str, ...]]:
+        errors: list[str] = []
         warnings: list[str] = []
         if self.config.propensity_lower >= self.config.propensity_upper:
-            warnings.append("Некорректный диапазон propensity score")
+            errors.append("Некорректный диапазон propensity score")
         if self.config.scenario == "weak_overlap":
             warnings.append("Сценарий содержит преднамеренно слабое overlap")
-        self.state = "valid" if not warnings else "draft"
+        messages = tuple([*errors, *warnings])
+        self.state = "valid" if not errors else "draft"
         self.state_changed.emit(self.state)
-        self.warnings_changed.emit(tuple(warnings))
-        return not warnings, tuple(warnings)
+        self.warnings_changed.emit(messages)
+        return not errors, messages
 
     def execute(self, *, compute_cate: bool = True) -> None:
         if self.state == "running":
             return
+        self.neural_result_changed.emit(None)
         self._cancel_requested = False
         self.state = "running"
         self.state_changed.emit(self.state)
@@ -301,6 +313,7 @@ class AppState(QObject):
     def load_imported_data(
         self, data: pd.DataFrame, dataset_spec: DatasetSpec | None = None
     ) -> None:
+        self.neural_result_changed.emit(None)
         values = self.config.model_dump()
         values.update(mode="import", profile_name="imported-data")
         self.config = GeneratorConfig.model_validate(values)
@@ -319,6 +332,7 @@ class AppState(QObject):
         )
         self.result = None
         self.state = "draft"
+        self.warnings_changed.emit(())
         self.config_changed.emit(self.config)
         self.data_changed.emit(self.data)
         self.state_changed.emit(self.state)
@@ -331,19 +345,26 @@ class AppState(QObject):
         ensemble_size: int = 10,
         max_epochs: int = 250,
     ) -> None:
-        if self.data is None or self.result is None or self._neural_worker is not None:
+        if (
+            self.data is None
+            or self.result is None
+            or self._neural_worker is not None
+            or self.state not in {"completed", "replayed"}
+        ):
             return
         config = NeuralSCMConfig(
             ensemble_size=ensemble_size,
             max_epochs=max_epochs,
             base_seed=self.config.seed,
         )
+        run_id = self.result.manifest.run_id
+        self._neural_run_id = run_id
         worker = NeuralWorker(
             self.data,
             graph_id,
             outcome,
             self.repository,
-            self.result.manifest.run_id,
+            run_id,
             config,
         )
         worker.signals.progress.connect(self.progress_changed)
@@ -371,7 +392,17 @@ class AppState(QObject):
     @Slot(object, object)
     def _neural_finished(self, result, _relative_path) -> None:
         self._neural_worker = None
-        self.neural_result_changed.emit(result)
+        run_id = self._neural_run_id
+        self._neural_run_id = None
+        if (
+            run_id is not None
+            and self.result is not None
+            and self.result.manifest.run_id == run_id
+            and self.state in {"completed", "replayed"}
+        ):
+            self.neural_result_changed.emit(result)
+        else:
+            self.neural_result_changed.emit(None)
 
     @Slot(object, object)
     def _monte_carlo_finished(self, counts, paths) -> None:
@@ -381,6 +412,7 @@ class AppState(QObject):
     @Slot(str)
     def _task_failed(self, details: str) -> None:
         self._neural_worker = None
+        self._neural_run_id = None
         self._mc_worker = None
         self.warnings_changed.emit((details,))
 
@@ -414,6 +446,7 @@ class AppState(QObject):
         self.warnings_changed.emit((details,))
 
     def inject_result(self, result: AnalysisResult, data: pd.DataFrame) -> None:
+        self.neural_result_changed.emit(None)
         self.result = result
         self.data = data
         self.config = result.config

@@ -29,7 +29,13 @@ GRAPH_POSITIONS = {
 
 
 def _figure(figsize=(7.0, 4.0)) -> Figure:
-    sns.set_theme(style="whitegrid", font_scale=0.9)
+    # Matplotlib ships DejaVu Sans; it supports Cyrillic, Greek and subscript digits
+    # used in G₁–G₄ labels. Explicit selection avoids Windows falling back to Arial.
+    sns.set_theme(
+        style="whitegrid",
+        font_scale=0.9,
+        rc={"font.family": "DejaVu Sans"},
+    )
     return Figure(figsize=figsize, tight_layout=True)
 
 
@@ -108,7 +114,7 @@ def plot_alpha_cascade(cuts: tuple[AlphaCut, ...]) -> Figure:
         linewidths=1,
         linecolor="white",
         xticklabels=graph_order,
-        yticklabels=[f"α={cut.alpha:.2f}" for cut in nonempty],
+        yticklabels=[f"α={cut.alpha:.4f}" for cut in nonempty],
         ax=axis,
     )
     axis.set_title("Каскад вложенных α-срезов Γα", loc="left", fontweight="bold")
@@ -194,7 +200,7 @@ def plot_stability_map(profiles: tuple[StabilityProfile, ...]) -> Figure:
     labels = []
     for profile in profiles:
         for point in profile.points:
-            labels.append(f"{profile.outcome} · α={point.alpha:.2f}")
+            labels.append(f"{profile.outcome} · α={point.alpha:.4f}")
             rows.append(
                 [
                     point.uniformly_identified,
