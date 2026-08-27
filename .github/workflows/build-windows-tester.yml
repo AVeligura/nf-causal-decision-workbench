@@ -23,6 +23,9 @@ jobs:
           python-version: "3.12"
           architecture: x64
 
+      - name: Prepare project Python probe venv
+        run: python -m venv .venv
+
       - name: Fetch and verify accepted UCI source data
         run: python scripts/fetch_uci_data.py
 
