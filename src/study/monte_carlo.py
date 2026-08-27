@@ -4,7 +4,7 @@ import hashlib
 import json
 import multiprocessing
 import os
-import resource
+# import resource
 import sqlite3
 import time
 import traceback
@@ -43,8 +43,12 @@ def _current_rss_bytes(process: psutil.Process | None) -> int:
         rss_line = next(line for line in status.splitlines() if line.startswith("VmRSS:"))
         return int(rss_line.split()[1]) * 1024
     except (OSError, StopIteration, ValueError):
-        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        return int(usage * (1024 if os.uname().sysname == "Linux" else 1))
+            if os.name == "nt":
+                return 0
+            import resource
+
+            usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            return int(usage * (1024 if os.uname().sysname == "Linux" else 1))
 
 
 def _sample_rss(stop: Event, samples: list[int]) -> None:
