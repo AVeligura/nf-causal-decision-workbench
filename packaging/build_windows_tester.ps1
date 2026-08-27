@@ -124,11 +124,19 @@ $SmokeExitHex = "0x{0:X8}" -f $SmokeExitUInt32
 
 $SmokeExists = Test-Path -LiteralPath $SmokeFile
 $SmokePassed = $false
+$GuiSmokeStatus = $null
+$GuiWorkspaceCount = $null
 
 if ($SmokeExists) {
     try {
         $SmokeResult = Get-Content -LiteralPath $SmokeFile -Raw | ConvertFrom-Json
-        $SmokePassed = ($SmokeResult.status -eq "PASS")
+        $GuiSmokeStatus = $SmokeResult.gui_main_window
+        $GuiWorkspaceCount = $SmokeResult.gui_workspace_count
+        $SmokePassed = (
+            $SmokeResult.status -eq "PASS" -and
+            $GuiSmokeStatus -eq "PASS" -and
+            [int]$GuiWorkspaceCount -eq 5
+        )
     }
     catch {
         Write-Warning "smoke_check.json существует, но не является корректным JSON:"
@@ -142,6 +150,8 @@ if ($SmokeExitCode -ne 0 -or -not $SmokeExists -or -not $SmokePassed) {
     Write-Host "Exit code: $SmokeExitCode"
     Write-Host "Exit code HEX: $SmokeExitHex"
     Write-Host "smoke_check.json exists: $SmokeExists"
+    Write-Host "GUI main window: $GuiSmokeStatus"
+    Write-Host "GUI workspace count: $GuiWorkspaceCount"
 
     $DiagnosticFiles = Get-ChildItem `
         -LiteralPath $ReleaseRoot, $BuildRoot `
@@ -177,6 +187,8 @@ if ($SmokeExitCode -ne 0 -or -not $SmokeExists -or -not $SmokePassed) {
 }
 
 Write-Host "Автономная smoke-проверка: PASS"
+Write-Host "GUI main window: $GuiSmokeStatus"
+Write-Host "GUI workspace count: $GuiWorkspaceCount"
 Write-Host "Exit code: $SmokeExitCode"
 
 $VerificationReport = Join-Path $Distribution "DISTRIBUTION_VERIFICATION.json"
