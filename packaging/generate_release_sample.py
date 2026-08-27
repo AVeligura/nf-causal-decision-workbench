@@ -13,7 +13,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from domain import GeneratorConfig  # noqa: E402
 from study import generate_dataset  # noqa: E402
 
-EXPECTED_SHA256 = "d17be3e87145ab69bd514e15b6a2e268ccaeee9a4ee8cede3e1a75d04dad7976"
+EXPECTED_SHA256 = "0d0a2cef3999beeb2cd8ec717124084b15c917c2697f99a12c72c04a7f458f59"
 COLUMNS = [
     "T",
     "V",
@@ -42,7 +42,7 @@ def main() -> int:
     config = GeneratorConfig.model_validate(yaml.safe_load(config_path.read_text("utf-8")))
     frame = generate_dataset(config).data[COLUMNS]
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(args.output, index=False)
+    frame.to_csv(args.output, index=False, lineterminator="\n")
 
     digest = hashlib.sha256(args.output.read_bytes()).hexdigest()
     if digest != EXPECTED_SHA256:
@@ -53,4 +53,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
