@@ -907,7 +907,6 @@ class ExperimentPassportWorkspace(QWidget):
         self.saved_runs.setObjectName("savedRunsCombo")
         self.saved_runs.currentTextChanged.connect(self._select_saved_run)
         saved_row.addWidget(self.saved_runs, 1)
-        self.refresh_saved_runs()
         layout.addLayout(saved_row)
         replay_row = QHBoxLayout()
         replay_row.addWidget(QLabel("Run ID"))
@@ -922,6 +921,7 @@ class ExperimentPassportWorkspace(QWidget):
         self.replay_status = QLabel("Replay не выполнялся")
         self.replay_status.setObjectName("statusChip")
         layout.addWidget(self.replay_status)
+        self.refresh_saved_runs()
         return tab
 
     def _select_saved_run(self, run_id: str) -> None:
