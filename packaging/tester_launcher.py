@@ -32,6 +32,10 @@ def configure_portable_paths(root: Path) -> None:
 
 
 def smoke_check(root: Path) -> int:
+    # The smoke check must exercise the real Qt window without requiring a
+    # desktop session. Set the platform before importing Qt widgets/UI code.
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
     import networkx
     import numpy
     import pandas
@@ -42,11 +46,40 @@ def smoke_check(root: Path) -> int:
     import sklearn
     import statsmodels
     import torch
+    from PySide6.QtWidgets import QApplication
 
     from engine.graphs import reference_graphs
     from study.data_pool import load_uci_pool
+    from ui.main_window import MainWindow
 
     pool = load_uci_pool()
+
+    application = QApplication.instance()
+    owns_application = application is None
+    if application is None:
+        application = QApplication([APPLICATION_NAME, "--smoke-check"])
+    application.setApplicationName(APPLICATION_NAME)
+
+    smoke_repository = root / "artifacts" / "smoke_repository"
+    smoke_repository.mkdir(parents=True, exist_ok=True)
+
+    window = MainWindow(smoke_repository)
+    window.show()
+    application.processEvents()
+
+    if window.windowTitle() != APPLICATION_NAME:
+        raise RuntimeError(f"Unexpected main window title: {window.windowTitle()!r}")
+    if window.pages.count() != 5:
+        raise RuntimeError(f"Unexpected workspace count: {window.pages.count()}")
+    if not hasattr(window.experiment_workspace, "run_id"):
+        raise RuntimeError("Experiment/passport workspace did not initialize run_id")
+
+    gui_workspace_count = int(window.pages.count())
+    window.close()
+    application.processEvents()
+    if owns_application:
+        application.quit()
+
     payload = {
         "application": APPLICATION_NAME,
         "version": APPLICATION_VERSION,
@@ -54,6 +87,8 @@ def smoke_check(root: Path) -> int:
         "python": sys.version,
         "data_rows": int(len(pool.raw)),
         "graphs": [graph.graph_id for graph in reference_graphs()],
+        "gui_main_window": "PASS",
+        "gui_workspace_count": gui_workspace_count,
         "packages": {
             "PySide6": PySide6.__version__,
             "numpy": numpy.__version__,
