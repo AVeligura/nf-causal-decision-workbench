@@ -6,7 +6,7 @@ $ReleaseRoot = Join-Path $ProjectRoot "release"
 $Repo = "AVeligura/nf-causal-decision-workbench"
 $Tag = "v3.1.1"
 $TargetCommit = "91b2189297cd422035f3903d2a580ce5519dc419"
-$Title = "NF-Causal Decision Workbench V3.1.1 — Windows testing build"
+$Title = "NF-Causal Decision Workbench V3.1.1 - Windows testing build"
 
 $TesterZip = Join-Path $ReleaseRoot "NF_Causal_Workbench_V3_1_1_Windows_Tester.zip"
 $TesterHashFile = Join-Path $ReleaseRoot "NF_Causal_Workbench_V3_1_1_Windows_Tester_SHA256.txt"
@@ -113,6 +113,6 @@ else {
 
 Write-Host ""
 Write-Host "Published verified V3.1.1 release assets:"
-Write-Host "Tester ZIP SHA-256:   $TesterDigest"
+Write-Host "Tester ZIP SHA-256:    $TesterDigest"
 Write-Host "Test Data ZIP SHA-256: $DataDigest"
 & gh release view $Tag --repo $Repo --json url,tagName,name,isPrerelease --jq '.url'
