@@ -12,6 +12,7 @@ $TesterZip = Join-Path $ReleaseRoot "NF_Causal_Workbench_V3_1_1_Windows_Tester.z
 $TesterHashFile = Join-Path $ReleaseRoot "NF_Causal_Workbench_V3_1_1_Windows_Tester_SHA256.txt"
 $DataZip = Join-Path $ReleaseRoot "NF_Causal_Workbench_V3_1_1_Test_Data.zip"
 $DataHashFile = Join-Path $ReleaseRoot "NF_Causal_Workbench_V3_1_1_Test_Data_SHA256.txt"
+$BaseNotesFile = Join-Path $ProjectRoot "RELEASE_NOTES.md"
 $NotesFile = Join-Path $ReleaseRoot "RELEASE_NOTES_GENERATED.md"
 
 $ExpectedTesterSha256 = "f516e016c3f5201627ea3df50de0fe6883395fcd3fdaa812cbce14af32f64112"
@@ -22,7 +23,7 @@ $RequiredFiles = @(
     $TesterHashFile,
     $DataZip,
     $DataHashFile,
-    $NotesFile
+    $BaseNotesFile
 )
 
 foreach ($Path in $RequiredFiles) {
@@ -43,7 +44,6 @@ if ($DataDigest -ne $ExpectedDataSha256) {
 
 $TesterHashText = Get-Content -LiteralPath $TesterHashFile -Raw
 $DataHashText = Get-Content -LiteralPath $DataHashFile -Raw
-$NotesText = Get-Content -LiteralPath $NotesFile -Raw
 
 if ($TesterHashText -notmatch [regex]::Escape($ExpectedTesterSha256)) {
     throw "Tester checksum file does not contain the verified digest."
@@ -51,10 +51,14 @@ if ($TesterHashText -notmatch [regex]::Escape($ExpectedTesterSha256)) {
 if ($DataHashText -notmatch [regex]::Escape($ExpectedDataSha256)) {
     throw "Test Data checksum file does not contain the verified digest."
 }
-if ($NotesText -notmatch [regex]::Escape($ExpectedTesterSha256) -or
-    $NotesText -notmatch [regex]::Escape($ExpectedDataSha256)) {
-    throw "Generated release notes do not contain both verified release digests."
-}
+
+# Regenerate release notes from the repository source using explicit UTF-8.
+# This avoids Windows PowerShell 5.1 interpreting UTF-8 text as ANSI.
+$NotesText = Get-Content -LiteralPath $BaseNotesFile -Raw -Encoding UTF8
+$NotesText += "`r`n## SHA-256`r`n`r`n"
+$NotesText += "- ``$([System.IO.Path]::GetFileName($TesterZip))``: ``$ExpectedTesterSha256```r`n"
+$NotesText += "- ``$([System.IO.Path]::GetFileName($DataZip))``: ``$ExpectedDataSha256```r`n"
+Set-Content -LiteralPath $NotesFile -Value $NotesText -Encoding UTF8
 
 $Gh = Get-Command gh -ErrorAction SilentlyContinue
 if (-not $Gh) {
@@ -75,19 +79,11 @@ $AssetPaths = @(
 
 # Windows PowerShell 5.1 can turn stderr from a native command into a
 # terminating NativeCommandError when ErrorActionPreference is Stop.
-# Probe release existence through cmd.exe so a normal "not found" result
-# is represented only by the process exit code.
 & cmd.exe /d /c "gh release view $Tag --repo $Repo >nul 2>nul"
 $ReleaseExists = ($LASTEXITCODE -eq 0)
 
 if ($ReleaseExists) {
-    Write-Host "Release $Tag already exists; replacing assets with the verified local build."
-    $UploadArgs = @("release", "upload", $Tag) + $AssetPaths + @("--repo", $Repo, "--clobber")
-    & gh @UploadArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to upload verified release assets."
-    }
-
+    Write-Host "Release $Tag already exists; updating metadata only."
     $EditArgs = @(
         "release", "edit", $Tag,
         "--repo", $Repo,
@@ -116,7 +112,7 @@ else {
 }
 
 Write-Host ""
-Write-Host "Published verified V3.1.1 release assets:"
+Write-Host "Published verified V3.1.1 release metadata:"
 Write-Host "Tester ZIP SHA-256:    $TesterDigest"
 Write-Host "Test Data ZIP SHA-256: $DataDigest"
 & gh release view $Tag --repo $Repo --json url,tagName,name,isPrerelease --jq '.url'
