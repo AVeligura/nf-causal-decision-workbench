@@ -73,7 +73,11 @@ $AssetPaths = @(
     $DataHashFile
 )
 
-& gh release view $Tag --repo $Repo *> $null
+# Windows PowerShell 5.1 can turn stderr from a native command into a
+# terminating NativeCommandError when ErrorActionPreference is Stop.
+# Probe release existence through cmd.exe so a normal "not found" result
+# is represented only by the process exit code.
+& cmd.exe /d /c "gh release view $Tag --repo $Repo >nul 2>nul"
 $ReleaseExists = ($LASTEXITCODE -eq 0)
 
 if ($ReleaseExists) {
