@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
+
 from domain import GeneratorConfig
 from engine import run_analysis
 from study import generate_dataset
+from ui.integration_contract import (
+    FIXED_ESTIMAND_TEXT,
+    FIXED_HORIZON_QUARTERS,
+    FIXED_OUTCOME_TEXT,
+    FIXED_VERSION_TEXT,
+)
 from ui.main_window import MainWindow
 
 
@@ -19,6 +27,58 @@ def test_window_navigation_and_reference_lock(qtbot, tmp_path):
     for page in range(5):
         window.navigation.setCurrentRow(page)
         assert window.pages.currentIndex() == page
+
+
+def test_fixed_causal_contract_is_informational(qtbot, tmp_path):
+    window = MainWindow(tmp_path / "repository")
+    qtbot.addWidget(window)
+    workspace = window.project_workspace
+
+    assert not hasattr(window, "mode_combo")
+    assert window.run_button.text() == "Выполнить анализ"
+
+    assert workspace.outcome.count() == 1
+    assert workspace.outcome.currentText() == FIXED_OUTCOME_TEXT
+    assert not workspace.outcome.isEnabled()
+
+    assert workspace.estimand.count() == 1
+    assert workspace.estimand.currentText() == FIXED_ESTIMAND_TEXT
+    assert not workspace.estimand.isEnabled()
+
+    assert workspace.horizon.value() == FIXED_HORIZON_QUARTERS
+    assert not workspace.horizon.isEnabled()
+
+    assert workspace.version.count() == 1
+    assert workspace.version.currentText() == FIXED_VERSION_TEXT
+    assert not workspace.version.isEnabled()
+
+
+def test_reference_evidence_is_immutable_and_lab_edits_only_active_fields(qtbot, tmp_path):
+    window = MainWindow(tmp_path / "repository")
+    qtbot.addWidget(window)
+    table = window.evidence_workspace.evidence_table
+
+    assertion = table.item(0, 1)
+    support = table.item(0, 4)
+    assert assertion is not None
+    assert support is not None
+    assert not bool(assertion.flags() & Qt.ItemFlag.ItemIsEditable)
+    assert not bool(support.flags() & Qt.ItemFlag.ItemIsEditable)
+
+    window.state_model.clone_reference()
+
+    assertion = table.item(0, 1)
+    support = table.item(0, 4)
+    reliability = table.item(0, 5)
+    applicability = table.item(0, 6)
+    assert assertion is not None
+    assert support is not None
+    assert reliability is not None
+    assert applicability is not None
+    assert not bool(assertion.flags() & Qt.ItemFlag.ItemIsEditable)
+    assert bool(support.flags() & Qt.ItemFlag.ItemIsEditable)
+    assert bool(reliability.flags() & Qt.ItemFlag.ItemIsEditable)
+    assert bool(applicability.flags() & Qt.ItemFlag.ItemIsEditable)
 
 
 def test_result_updates_linked_workspaces(qtbot, tmp_path):
