@@ -85,6 +85,7 @@ class MainWindow(QMainWindow):
         self._build_warning_dock()
         self._build_statusbar()
         self._connect_state()
+        self._state_changed(self.state_model.state)
 
     def _build_toolbar(self) -> None:
         toolbar = QToolBar("Главная панель")
@@ -229,17 +230,42 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _execute(self) -> None:
+        valid, _warnings = self.state_model.validate()
+        if not valid:
+            self.progress_text.setText("Запуск отменён: исправьте ошибки конфигурации")
+            return
         self.state_model.execute(compute_cate=True)
 
     @Slot(str)
     def _state_changed(self, state: str) -> None:
         self.state_chip.setText(state)
         running = state == "running"
+        current_result = (
+            self.state_model.result is not None and state in {"completed", "replayed"}
+        )
         self.run_button.setEnabled(not running)
         self.stop_button.setEnabled(running)
-        self.export_button.setEnabled(self.state_model.result is not None and not running)
-        self.replay_button.setEnabled(self.state_model.result is not None and not running)
-        if state in {"draft", "stale"}:
+        self.export_button.setEnabled(current_result)
+        self.replay_button.setEnabled(current_result)
+        self.inference_workspace.setEnabled(current_result)
+        self.stability_workspace.setEnabled(current_result)
+        self.evidence_workspace.plot_tabs.setTabEnabled(0, current_result)
+        self.evidence_workspace.plot_tabs.setTabEnabled(2, current_result)
+
+        if self.state_model.result is not None:
+            run_id = self.state_model.result.manifest.run_id
+            self.run_label.setText(run_id if current_result else f"{run_id} · предыдущий")
+            if current_result:
+                self.stability_workspace.refresh_config(self.state_model.result.config)
+            else:
+                for edit in self.stability_workspace.coefficient_edits.values():
+                    edit.setText("— · требуется новый запуск")
+
+        if state in {"draft", "stale", "valid"} and self.state_model.result is not None:
+            self.progress_text.setText(
+                "Показанный результат относится к предыдущей конфигурации; выполните анализ заново"
+            )
+        elif state in {"draft", "stale"}:
             self.progress_text.setText("Конфигурация изменена; требуется проверка")
 
     @Slot(int, str)
@@ -261,11 +287,13 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _result_changed(self, result) -> None:
         self.run_label.setText(result.manifest.run_id)
-        self.export_button.setEnabled(True)
-        self.replay_button.setEnabled(True)
+        self._state_changed(self.state_model.state)
 
     def _replay_current(self) -> None:
-        if self.state_model.result:
+        if (
+            self.state_model.result is not None
+            and self.state_model.state in {"completed", "replayed"}
+        ):
             self._replay_run(self.state_model.result.manifest.run_id)
 
     @Slot(str)
@@ -306,7 +334,11 @@ class MainWindow(QMainWindow):
     def _export(self) -> None:
         result = self.state_model.result
         data = self.state_model.data
-        if result is None or data is None:
+        if (
+            result is None
+            or data is None
+            or self.state_model.state not in {"completed", "replayed"}
+        ):
             return
         destination = QFileDialog.getExistingDirectory(self, "Папка экспорта")
         if not destination:
