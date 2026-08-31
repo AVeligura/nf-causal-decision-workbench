@@ -11,6 +11,7 @@ from domain import (
     DecisionResult,
     EffectResult,
     EvidenceBundle,
+    GeneratorConfig,
     GraphScore,
     GraphSpec,
     IdentificationStatus,
@@ -54,9 +55,12 @@ def _validate_passport_inputs(
 def build_causal_structure_passport(
     *,
     manifest: RunManifest,
+    config: GeneratorConfig,
     queries: tuple[CausalQuery, ...],
     dataset_spec: DatasetSpec,
     evidence: EvidenceBundle,
+    evidence_hash: str,
+    analysis_input_hash: str,
     graphs: tuple[GraphSpec, ...],
     graph_scores: tuple[GraphScore, ...],
     alpha_cuts: tuple[AlphaCut, ...],
@@ -67,7 +71,18 @@ def build_causal_structure_passport(
     assumptions_and_limitations: tuple[str, ...],
 ) -> CausalDecisionPassport:
     validation = _validate_passport_inputs(effects, decisions)
+    validation.update(
+        {
+            "input_identity_schema": "1.0",
+            "config_hash": manifest.config_hash,
+            "data_hash": manifest.data_hash,
+            "evidence_hash": evidence_hash,
+            "analysis_input_hash": analysis_input_hash,
+            "canonical_config": config.model_dump(mode="json"),
+        }
+    )
     return CausalDecisionPassport(
+        passport_version="1.1",
         manifest=manifest,
         causal_queries=queries,
         dataset=dataset_spec,
@@ -102,6 +117,7 @@ def build_causal_structure_passport(
                 "event": "passport_built",
                 "run_id": manifest.run_id,
                 "rule": "build_causal_structure_passport",
+                "analysis_input_hash": analysis_input_hash,
             },
         ),
     )
