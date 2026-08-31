@@ -5,7 +5,6 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QApplication,
-    QComboBox,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
@@ -34,6 +33,7 @@ from visualization import (
     save_figure,
 )
 
+from .integration_contract import apply_fixed_causal_contract, configure_evidence_editor
 from .state import AppState
 from .workspaces import (
     CausalInferenceWorkspace,
@@ -103,9 +103,6 @@ class MainWindow(QMainWindow):
         self.run_label = QLabel("—")
         toolbar.addWidget(self.run_label)
         toolbar.addSeparator()
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["Один запуск", "Монте-Карло"])
-        toolbar.addWidget(self.mode_combo)
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
@@ -113,7 +110,7 @@ class MainWindow(QMainWindow):
         self.state_chip.setObjectName("statusChip")
         toolbar.addWidget(self.state_chip)
         self.validate_button = QPushButton("Проверить")
-        self.run_button = QPushButton("Выполнить")
+        self.run_button = QPushButton("Выполнить анализ")
         self.stop_button = QPushButton("Остановить")
         self.replay_button = QPushButton("Повторить")
         self.export_button = QPushButton("Экспортировать")
@@ -156,6 +153,22 @@ class MainWindow(QMainWindow):
         self.inference_workspace = CausalInferenceWorkspace(self.state_model)
         self.stability_workspace = StabilityDecisionWorkspace(self.state_model)
         self.experiment_workspace = ExperimentPassportWorkspace(self.state_model)
+
+        apply_fixed_causal_contract(self.project_workspace)
+        configure_evidence_editor(
+            self.evidence_workspace, editable=not self.state_model.reference_locked
+        )
+        self.state_model.state_changed.connect(
+            lambda _state: configure_evidence_editor(
+                self.evidence_workspace, editable=not self.state_model.reference_locked
+            )
+        )
+        self.state_model.evidence_changed.connect(
+            lambda _bundle: configure_evidence_editor(
+                self.evidence_workspace, editable=not self.state_model.reference_locked
+            )
+        )
+
         for workspace in (
             self.project_workspace,
             self.evidence_workspace,
