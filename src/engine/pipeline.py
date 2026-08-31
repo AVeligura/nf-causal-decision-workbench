@@ -154,12 +154,22 @@ def run_analysis(
         value_config=value_config,
     )
     full_procedure_decision_seconds = time.perf_counter() - decision_started
+
     config_hash = _stable_hash(config.model_dump(mode="json"))
+    data_hash = _data_hash(data)
+    evidence_hash = _stable_hash(evidence.as_dict())
+    analysis_input_hash = _stable_hash(
+        {
+            "config_hash": config_hash,
+            "data_hash": data_hash,
+            "evidence_hash": evidence_hash,
+        }
+    )
     manifest = RunManifest(
         run_id=f"run-{uuid.uuid4().hex[:12]}",
         project_id=project_id,
         config_hash=config_hash,
-        data_hash=_data_hash(data),
+        data_hash=data_hash,
         state="replayed" if replay_of else "completed",
         environment={
             "python": platform.python_version(),
@@ -182,9 +192,12 @@ def run_analysis(
         limitations.append("Истинная структура содержит ненаблюдаемый U и отсутствует в Γ")
     passport = build_causal_structure_passport(
         manifest=manifest,
+        config=config,
         queries=queries,
         dataset_spec=dataset_spec,
         evidence=evidence,
+        evidence_hash=evidence_hash,
+        analysis_input_hash=analysis_input_hash,
         graphs=graphs,
         graph_scores=scores,
         alpha_cuts=alpha_cuts,
@@ -210,5 +223,7 @@ def run_analysis(
             "rows": len(data),
             "oracle_truth_available": dataset_spec.truth_available,
             "full_procedure_decision_seconds": full_procedure_decision_seconds,
+            "evidence_hash": evidence_hash,
+            "analysis_input_hash": analysis_input_hash,
         },
     )
